@@ -32,7 +32,7 @@ impl Decoder for MicCodec {
 impl Encoder<()> for MicCodec {
     type Error = io::Error;
 
-    fn encode(&mut self, msg: (), dst: &mut BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, _msg: (), _dst: &mut BytesMut) -> Result<(), Self::Error> {
         // Always return an error.
         Err(io::Error::new(
             io::ErrorKind::Other,
@@ -43,7 +43,7 @@ impl Encoder<()> for MicCodec {
 
 #[derive(Debug)]
 pub struct MicFrame {
-    data: Datum,
+    pub data: Datum,
 }
 
 #[derive(Debug)]
@@ -63,9 +63,24 @@ impl TryFrom<&[u8]> for Datum {
 }
 
 impl Datum {
-    // mac -> to_string
-    // temp/humid to float
-    // ppm
+    pub fn mac_as_string(&self) -> String {
+        format!("{:X?}", self.mac)
+            .replace(", ", ":")
+            .replace("[", "")
+            .replace("]", "")
+    }
+
+    pub fn data(&self) -> (u16, u16, u16) {
+        (self.ppm, self.humidity, self.temp)
+    }
+
+    pub fn data_readable(&self) -> (u16, f32, f32) {
+        (
+            self.ppm,
+            (self.humidity as f32) / 10.0,
+            (self.temp as f32) / 10.0,
+        )
+    }
 }
 
 named!( datum_parser<&[u8], Datum>,
@@ -90,7 +105,7 @@ named!( datum_parser<&[u8], Datum>,
 
 #[cfg(test)]
 mod tests {
-    use crate::proto::{datum_parser, Datum};
+    use crate::proto::Datum;
     use std::convert::TryFrom;
 
     #[test]
@@ -102,10 +117,9 @@ mod tests {
         ];
 
         let d1 = Datum::try_from(t1.as_slice()).unwrap();
-        println!("{:?}", d1);
-        assert!(d1.ppm == 671);
-        assert!(d1.humidity == 633);
-        assert!(d1.temp == 283);
+        assert!(d1.data() == (671, 633, 283));
+        assert!(d1.data_readable() == (671, 63.3, 28.3));
         assert!(d1.mac == [0x20, 0xF8, 0x5E, 0xBE, 0x29, 0xD8,]);
+        assert!(d1.mac_as_string() == "20:F8:5E:BE:29:D8");
     }
 }
