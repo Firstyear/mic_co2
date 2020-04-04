@@ -1,0 +1,33 @@
+[package]
+name = "mic_co2"
+version = "0.1.0"
+authors = ["William Brown <william@blackhats.net.au>"]
+edition = "2018"
+license = "MPL-2.0"
+build = "build.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+name = "mic"
+path = "src/lib.rs"
+
+[[bin]]
+name = "micd"
+path = "src/main.rs"
+
+
+[dependencies]
+nom = "5.1"
+env_logger = "0.6"
+log = "0.4"
+askama = "0.6"
+actix = "0.9"
+actix-rt = "1.0"
+actix-web = { version = "2.0", features = ["openssl"] }
+actix-files = "0.2"
+
+bytes = "0.5"
+tokio = { version = "0.2", default-features=false, features=["udp", "signal"] }
+tokio-util = { version = "0.3", features = ["udp", "codec"] }
+futures-util = "0.3"
