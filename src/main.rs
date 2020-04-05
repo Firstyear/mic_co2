@@ -13,6 +13,9 @@ use actix_web::web::{self, Data, HttpResponse};
 use actix_web::{middleware, App, HttpServer};
 use askama::Template;
 
+use time::OffsetDateTime;
+use std::time::Duration;
+
 use mic::prelude::*;
 
 mod db;
@@ -23,6 +26,7 @@ mod render;
 
 struct AppState {
     render_addr: Addr<render::RenderActor>,
+    db_addr: Addr<db::DbActor>,
 }
 
 #[derive(Template)]
@@ -30,6 +34,13 @@ struct AppState {
 struct IndexTemplate {}
 
 async fn index_view(state: Data<AppState>) -> HttpResponse {
+    // For now, show last 8 hours.
+    let ct = OffsetDateTime::now_local();
+    let lower = ct - Duration::from_secs(14400);
+
+    let data = match state.
+
+
     let r = state.render_addr.send(render::RenderEvent).await;
 
     match r {
@@ -119,7 +130,7 @@ async fn main() {
         Server { db_addr: a_db_addr }
     });
 
-    let render_addr = SyncArbiter::start(1, move || render::RenderActor::new(b_db_addr.clone()));
+    let render_addr = SyncArbiter::start(1, move || render::RenderActor {} );
     let a_render_addr = render_addr.clone();
 
     // Main actix threads are up, get's the webui cracking.
@@ -128,6 +139,7 @@ async fn main() {
         App::new()
             .data(AppState {
                 render_addr: a_render_addr.clone(),
+                db_addr: b_db_addr.clone(),
             })
             .wrap(middleware::Logger::default())
             .service(fs::Files::new("/static", "./static"))
