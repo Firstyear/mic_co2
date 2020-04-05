@@ -62,9 +62,20 @@ impl TryFrom<&[u8]> for Datum {
     }
 }
 
+impl From<([u8; 6], u16, u16, u16)> for Datum {
+    fn from((mac, ppm, humidity, temp): ([u8; 6], u16, u16, u16)) -> Self {
+        Datum {
+            mac,
+            ppm,
+            humidity,
+            temp,
+        }
+    }
+}
+
 impl Datum {
     pub fn mac_as_string(&self) -> String {
-        format!("{:X?}", self.mac)
+        format!("{:02X?}", self.mac)
             .replace(", ", ":")
             .replace("[", "")
             .replace("]", "")
