@@ -13,8 +13,8 @@ use actix_web::web::{self, Data, HttpResponse};
 use actix_web::{middleware, App, HttpServer};
 use askama::Template;
 
-use time::OffsetDateTime;
 use std::time::Duration;
+use time::OffsetDateTime;
 
 use mic::prelude::*;
 
@@ -34,14 +34,28 @@ struct AppState {
 struct IndexTemplate {}
 
 async fn index_view(state: Data<AppState>) -> HttpResponse {
-    // For now, show last 8 hours.
+    // Show last day in detail
     let ct = OffsetDateTime::now_local();
-    let lower = ct - Duration::from_secs(14400);
+    let lower = ct - Duration::from_secs(86400);
 
-    let data = match state.
+    let data = match state
+        .db_addr
+        .send(db::DbEventRange {
+            max: ct,
+            min: lower,
+        })
+        .await
+    {
+        Ok(Ok(d)) => d,
+        _ => {
+            error!("db unable to complete!");
+            return HttpResponse::InternalServerError()
+                .content_type("text/html")
+                .body("db failure");
+        }
+    };
 
-
-    let r = state.render_addr.send(render::RenderEvent).await;
+    let r = state.render_addr.send(render::RenderEvent { data }).await;
 
     match r {
         Ok(_) => info!("Render thread complete, sending ..."),
@@ -56,7 +70,7 @@ async fn index_view(state: Data<AppState>) -> HttpResponse {
     let t = IndexTemplate {};
     match t.render() {
         Ok(s) => HttpResponse::Ok().content_type("text/html").body(s),
-        Err(e) => HttpResponse::InternalServerError()
+        Err(_e) => HttpResponse::InternalServerError()
             .content_type("text/html")
             .body("template failure"),
     }
@@ -96,14 +110,29 @@ impl Handler<UdpEvent> for Server {
 async fn main() {
     env_logger::init();
 
-    // UNDO THIS SHIT
-    let addr = "127.0.0.1";
-    let db_path = "/tmp/data.db";
+    let http_bind = if cfg!(debug_assertions) {
+        "127.0.0.1:8082"
+    } else {
+        "172.24.10.19:8082"
+    };
 
-    let http_bind = "127.0.0.1:8080";
-
-    // let addr = "172.24.18.140";
+    let addr = if cfg!(debug_assertions) {
+        "127.0.0.1"
+    } else {
+        "172.24.18.140"
+    };
     let port = 2014;
+
+    let db_path = if cfg!(debug_assertions) {
+        "/tmp/micd.db"
+    } else {
+        "/data/micd.db"
+    };
+
+    info!("Micd udp listening on {}:{}", addr, port);
+    info!("Micd http listening on http://{}", http_bind);
+    info!("Micd db: {}", db_path);
+
     let v4_addr = Ipv4Addr::from_str(addr).expect("Failed to parse socket addr");
 
     let sock_addr = (v4_addr, port);
@@ -111,13 +140,11 @@ async fn main() {
 
     let stream = UdpFramed::new(sock, MicCodec);
 
-    // let db_path = "/data/micd.db";
     let db_addr = SyncArbiter::start(1, move || {
         db::DbActor::new(db_path).expect("Failed to start db thread")
     });
     let a_db_addr = db_addr.clone();
     let b_db_addr = db_addr.clone();
-    info!("db located: {}", db_path);
 
     Server::create(move |ctx| {
         ctx.add_message_stream(
@@ -130,7 +157,7 @@ async fn main() {
         Server { db_addr: a_db_addr }
     });
 
-    let render_addr = SyncArbiter::start(1, move || render::RenderActor {} );
+    let render_addr = SyncArbiter::start(1, move || render::RenderActor {});
     let a_render_addr = render_addr.clone();
 
     // Main actix threads are up, get's the webui cracking.
@@ -143,13 +170,11 @@ async fn main() {
             })
             .wrap(middleware::Logger::default())
             .service(fs::Files::new("/static", "./static"))
+            .service(fs::Files::new("/render", "./data/render"))
             .route("", web::get().to(index_view))
             .route("/", web::get().to(index_view))
     });
     server.bind(http_bind).unwrap().run();
-
-    info!("Micd udp listening on {}:{}", addr, port);
-    info!("Micd http listening on http://{}", http_bind);
 
     tokio::signal::ctrl_c().await.unwrap();
     info!("Ctrl-C received, shutting down");

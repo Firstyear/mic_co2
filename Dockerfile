@@ -21,12 +21,13 @@ RUN cp cargo_vendor.config .cargo/config && \
 FROM opensuse/tumbleweed:latest
 EXPOSE 8081
 WORKDIR /
-COPY --from=builder /home/mic/target/release/micd /bin/
-COPY --from=builder /home/mic/static /static
 RUN zypper install -y sqlite3 openssl timezone gnuplot
 
 RUN cd /etc && \
     ln -sf ../usr/share/zoneinfo/Australia/Brisbane localtime
+
+COPY --from=builder /home/mic/target/release/micd /bin/
+COPY --from=builder /home/mic/static /static
 
 ENV RUST_BACKTRACE 1
 CMD ["/bin/micd"]

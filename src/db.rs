@@ -38,12 +38,12 @@ macro_rules! ts_remove_hhmmss {
 }
 
 #[derive(Debug)]
-struct DbEvent {
-    src: String,
-    time: OffsetDateTime,
-    temp: u16,
-    ppm: u16,
-    hum: u16,
+pub struct DbEvent {
+    pub src: String,
+    pub time: OffsetDateTime,
+    pub temp: u16,
+    pub ppm: u16,
+    pub hum: u16,
 }
 
 struct Db {
@@ -227,10 +227,12 @@ impl Db {
         max: &OffsetDateTime,
     ) -> Result<Vec<DbEvent>, ()> {
         // select from where >= min and < max
-        let min_str = min.format("%F");
-        let max_str = max.format("%F");
+        let min_str = min.format("%F %T%z");
+        let max_str = max.format("%F %T%z");
 
         let conn = self.get_conn()?;
+
+        info!("SELECT ts, temp, ppm, hum FROM event_t WHERE mac = '{}' AND ts >= '{}' AND ts < '{}' ORDER BY ts ASC", src, min_str, max_str);
 
         let mut stmt = conn.prepare(
             "SELECT ts, temp, ppm, hum FROM event_t WHERE mac = :mac AND ts >= :min AND ts < :max ORDER BY ts ASC"
@@ -360,7 +362,7 @@ impl Db {
 
         let mut work_start = latest + Duration::from_secs(86400);
         // Get what days exist between latest report to ct.
-        while (work_start < upto) {
+        while work_start < upto {
             let work_end = work_start + Duration::from_secs(86400);
             // select all data from that range
             let data = self
@@ -509,7 +511,29 @@ impl Handler<DbAddDatumEvent> for DbActor {
 
     fn handle(&mut self, msg: DbAddDatumEvent, _: &mut SyncContext<Self>) {
         let ct = OffsetDateTime::now_local();
-        self.db.add_datum(msg.0, ct);
+        match self.db.add_datum(msg.0, ct) {
+            Ok(_) => {}
+            Err(_) => {
+                error!("Error adding data to event_t");
+            }
+        }
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "Result<Vec<DbEvent>, ()>")]
+pub struct DbEventRange {
+    pub min: OffsetDateTime,
+    pub max: OffsetDateTime,
+}
+
+impl Handler<DbEventRange> for DbActor {
+    type Result = Result<Vec<DbEvent>, ()>;
+
+    fn handle(&mut self, msg: DbEventRange, _: &mut SyncContext<Self>) -> Result<Vec<DbEvent>, ()> {
+        // Ehh I'm lazy, hardcore my meter for now .... .
+        let src = "20:F8:5E:BE:29:D8";
+        self.db.get_event_range(src, &msg.min, &msg.max)
     }
 }
 
