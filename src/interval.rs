@@ -2,7 +2,7 @@ use crate::db;
 use actix::prelude::*;
 use std::time::Duration;
 
-const PURGE_FREQUENCY: u64 = 14400;
+const PURGE_FREQUENCY: u64 = 21600;
 
 struct IntervalActor {
     db_addr: Addr<db::DbActor>,

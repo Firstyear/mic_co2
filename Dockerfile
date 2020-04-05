@@ -23,7 +23,7 @@ EXPOSE 8081
 WORKDIR /
 COPY --from=builder /home/mic/target/release/micd /bin/
 COPY --from=builder /home/mic/static /static
-RUN zypper install -y sqlite3 openssl timezone
+RUN zypper install -y sqlite3 openssl timezone gnuplot
 
 RUN cd /etc && \
     ln -sf ../usr/share/zoneinfo/Australia/Brisbane localtime
