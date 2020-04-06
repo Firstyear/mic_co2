@@ -2,10 +2,10 @@ use crate::db;
 use actix::prelude::*;
 use std::time::Duration;
 
-const PURGE_FREQUENCY: u64 = 21600;
+const PURGE_FREQUENCY: u64 = 14400;
 
-struct IntervalActor {
-    db_addr: Addr<db::DbActor>,
+pub struct IntervalActor {
+    pub db_addr: Addr<db::DbActor>,
 }
 
 impl IntervalActor {
@@ -20,6 +20,7 @@ impl Actor for IntervalActor {
     type Context = Context<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
+        info!("Started scheduled tasks ...");
         ctx.run_interval(Duration::from_secs(PURGE_FREQUENCY), move |act, _ctx| {
             act.purge();
         });

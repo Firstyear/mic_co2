@@ -38,9 +38,12 @@ async fn index_view(state: Data<AppState>) -> HttpResponse {
     let ct = OffsetDateTime::now_local();
     let lower = ct - Duration::from_secs(86400);
 
+    // get_history
+
     let data = match state
         .db_addr
         .send(db::DbEventRange {
+            src: "20:F8:5E:BE:29:D8".to_string(),
             max: ct,
             min: lower,
         })
@@ -55,7 +58,30 @@ async fn index_view(state: Data<AppState>) -> HttpResponse {
         }
     };
 
-    let r = state.render_addr.send(render::RenderEvent { data }).await;
+    let history = match state
+        .db_addr
+        .send(db::DbHistory {
+            src: "20:F8:5E:BE:29:D8".to_string(),
+        })
+        .await
+    {
+        Ok(Ok(d)) => d,
+        _ => {
+            error!("db unable to complete!");
+            return HttpResponse::InternalServerError()
+                .content_type("text/html")
+                .body("db failure");
+        }
+    };
+
+    let r = state
+        .render_addr
+        .send(render::RenderEvent {
+            src: "20:F8:5E:BE:29:D8".to_string(),
+            data,
+            history,
+        })
+        .await;
 
     match r {
         Ok(_) => info!("Render thread complete, sending ..."),
@@ -145,6 +171,11 @@ async fn main() {
     });
     let a_db_addr = db_addr.clone();
     let b_db_addr = db_addr.clone();
+    let c_db_addr = db_addr.clone();
+
+    // This runs the scheduled tasks
+    let ia = interval::IntervalActor { db_addr: c_db_addr };
+    let _ = ia.start();
 
     Server::create(move |ctx| {
         ctx.add_message_stream(

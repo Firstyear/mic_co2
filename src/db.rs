@@ -9,6 +9,7 @@ use time::OffsetDateTime;
 use mic::prelude::*;
 
 const RETAIN_DAYS: u64 = 4;
+pub const TFMT: &'static str = "%F %H:%M:%S%z";
 
 macro_rules! ensure_mac {
     ($conn:expr, $mac:expr, $err:expr) => {
@@ -44,6 +45,21 @@ pub struct DbEvent {
     pub temp: u16,
     pub ppm: u16,
     pub hum: u16,
+}
+
+#[derive(Debug)]
+pub struct DbHistoryEvent {
+    pub src: String,
+    pub time: OffsetDateTime,
+    pub temp_min: u16,
+    pub temp_max: u16,
+    pub temp_avg: u16,
+    pub ppm_min: u16,
+    pub ppm_max: u16,
+    pub ppm_avg: u16,
+    pub hum_min: u16,
+    pub hum_max: u16,
+    pub hum_avg: u16,
 }
 
 struct Db {
@@ -171,7 +187,7 @@ impl Db {
     fn add_datum(&self, datum: Datum, ct: OffsetDateTime) -> Result<(), ()> {
         let mac = datum.mac_as_string();
         let (ppm, hum, temp) = datum.data();
-        let ts = ct.format("%F %T%z");
+        let ts = ct.format(TFMT);
 
         let conn = self.get_conn()?;
         ensure_mac!(conn, &mac, ());
@@ -227,8 +243,8 @@ impl Db {
         max: &OffsetDateTime,
     ) -> Result<Vec<DbEvent>, ()> {
         // select from where >= min and < max
-        let min_str = min.format("%F %T%z");
-        let max_str = max.format("%F %T%z");
+        let min_str = min.format(TFMT);
+        let max_str = max.format(TFMT);
 
         let conn = self.get_conn()?;
 
@@ -263,10 +279,76 @@ impl Db {
             .map(|row| match row {
                 Ok((ts, temp, ppm, hum)) => DbEvent {
                     src: src.to_string(),
-                    time: OffsetDateTime::parse(ts, "%F %T%z").expect("invalid ts"),
+                    time: OffsetDateTime::parse(ts, TFMT).expect("invalid ts"),
                     temp,
                     ppm,
                     hum,
+                },
+                _ => panic!(),
+            })
+            .collect();
+
+        Ok(data)
+    }
+
+    fn get_history(&self, src: &str) -> Result<Vec<DbHistoryEvent>, ()> {
+        let conn = self.get_conn()?;
+
+        info!("SELECT t, temp_max, temp_min, temp_avg, ppm_max, ppm_min, ppm_avg, hum_max, hum_min, hum_avg FROM history_t WHERE mac = '{}'  ORDER BY t ASC", src);
+
+        let mut stmt = conn.prepare(
+            "SELECT t, temp_max, temp_min, temp_avg, ppm_max, ppm_min, ppm_avg, hum_max, hum_min, hum_avg FROM history_t WHERE mac = :mac ORDER BY t ASC"
+        )
+        .map_err(|e| {
+            error!("sqlite prepare and query error -> {:?}", e);
+            ()
+        })?;
+
+        let data_iter = stmt
+            .query_map_named(&[(":mac", &src)], |row| {
+                Ok((
+                    row.get_unwrap::<usize, String>(0),
+                    row.get_unwrap(1),
+                    row.get_unwrap(2),
+                    row.get_unwrap(3),
+                    row.get_unwrap(4),
+                    row.get_unwrap(5),
+                    row.get_unwrap(6),
+                    row.get_unwrap(7),
+                    row.get_unwrap(8),
+                    row.get_unwrap(9),
+                ))
+            })
+            .map_err(|e| {
+                error!("sqlite prepare and query error -> {:?}", e);
+                ()
+            })?;
+
+        let data: Vec<DbHistoryEvent> = data_iter
+            .map(|row| match row {
+                Ok((
+                    ts,
+                    temp_max,
+                    temp_min,
+                    temp_avg,
+                    ppm_max,
+                    ppm_min,
+                    ppm_avg,
+                    hum_max,
+                    hum_min,
+                    hum_avg,
+                )) => DbHistoryEvent {
+                    src: src.to_string(),
+                    time: OffsetDateTime::parse(ts, TFMT).expect("invalid ts"),
+                    temp_max,
+                    temp_min,
+                    temp_avg,
+                    ppm_max,
+                    ppm_min,
+                    ppm_avg,
+                    hum_max,
+                    hum_min,
+                    hum_avg,
                 },
                 _ => panic!(),
             })
@@ -295,7 +377,7 @@ impl Db {
         let data: Result<Vec<OffsetDateTime>, _> = data_iter
             .map(|row: Result<String, _>| {
                 row.map(|ts| {
-                    ts_remove_hhmmss!(OffsetDateTime::parse(&ts, "%F %T%z").expect("invalid ts"))
+                    ts_remove_hhmmss!(OffsetDateTime::parse(&ts, TFMT).expect("invalid ts"))
                 })
             })
             .collect();
@@ -327,7 +409,7 @@ impl Db {
             .map(|row: Result<String, _>| {
                 row.map(|ts| {
                     // We remove 1 day here to make it the "day before".
-                    ts_remove_hhmmss!(OffsetDateTime::parse(&ts, "%F %T%z").expect("invalid ts"))
+                    ts_remove_hhmmss!(OffsetDateTime::parse(&ts, TFMT).expect("invalid ts"))
                         - Duration::from_secs(86400)
                 })
             })
@@ -356,8 +438,8 @@ impl Db {
 
         info!(
             "Generating reports between: {:?} -> {:?}",
-            latest.format("%F %T%z"),
-            upto.format("%F %T%z")
+            latest.format(TFMT),
+            upto.format(TFMT)
         );
 
         let mut work_start = latest + Duration::from_secs(86400);
@@ -404,7 +486,7 @@ impl Db {
                     });
             let p_avg = p_sum / data.len() as u16;
             debug!("p -> {:?}, {:?}, {:?}", p_min, p_max, p_avg);
-            let ts = work_start.format("%F %T%z");
+            let ts = work_start.format(TFMT);
 
             // write that as a history event, use work_start as the TS.
             let conn = self.get_conn().map_err(|_| work_start.clone())?;
@@ -494,7 +576,7 @@ impl Handler<DbPurgeEvent> for DbActor {
                 Ok(_) => {}
                 Err(_) => error!(
                     "Failed to purge up to {:?} for {:?}",
-                    purge_upto.format("%F %T%z"),
+                    purge_upto.format(TFMT),
                     src
                 ),
             };
@@ -523,6 +605,7 @@ impl Handler<DbAddDatumEvent> for DbActor {
 #[derive(Message)]
 #[rtype(result = "Result<Vec<DbEvent>, ()>")]
 pub struct DbEventRange {
+    pub src: String,
     pub min: OffsetDateTime,
     pub max: OffsetDateTime,
 }
@@ -532,32 +615,50 @@ impl Handler<DbEventRange> for DbActor {
 
     fn handle(&mut self, msg: DbEventRange, _: &mut SyncContext<Self>) -> Result<Vec<DbEvent>, ()> {
         // Ehh I'm lazy, hardcore my meter for now .... .
-        let src = "20:F8:5E:BE:29:D8";
-        self.db.get_event_range(src, &msg.min, &msg.max)
+        self.db
+            .get_event_range(msg.src.as_str(), &msg.min, &msg.max)
+    }
+}
+
+#[derive(Message)]
+#[rtype(result = "Result<Vec<DbHistoryEvent>, ()>")]
+pub struct DbHistory {
+    pub src: String,
+}
+
+impl Handler<DbHistory> for DbActor {
+    type Result = Result<Vec<DbHistoryEvent>, ()>;
+
+    fn handle(
+        &mut self,
+        msg: DbHistory,
+        _: &mut SyncContext<Self>,
+    ) -> Result<Vec<DbHistoryEvent>, ()> {
+        self.db.get_history(msg.src.as_str())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::db::{Db, DbEvent};
+    use crate::db::{Db, DbEvent, TFMT};
     use mic::prelude::*;
     use time::OffsetDateTime;
 
     fn add_sample_data(db: &Db, mac: [u8; 6], temp: u16, ppm: u16, hum: u16, ts: &str) {
-        let ct = OffsetDateTime::parse(ts, "%F %T%z").expect("invalid ts");
+        let ct = OffsetDateTime::parse(ts, TFMT).expect("invalid ts");
         let datum = Datum::from((mac, ppm, hum, temp));
         db.add_datum(datum, ct).expect("Failed to add data!")
     }
 
     fn get_event_range(db: &Db, src: &str, min: &str, max: &str) -> Vec<DbEvent> {
-        let min_ts = OffsetDateTime::parse(min, "%F %T%z").expect("invalid ts");
-        let max_ts = OffsetDateTime::parse(max, "%F %T%z").expect("invalid ts");
+        let min_ts = OffsetDateTime::parse(min, TFMT).expect("invalid ts");
+        let max_ts = OffsetDateTime::parse(max, TFMT).expect("invalid ts");
         db.get_event_range(src, &min_ts, &max_ts)
             .expect("failed to get range")
     }
 
     fn purge(db: &Db, max: &str) {
-        let max_ts = OffsetDateTime::parse(max, "%F %T%z").expect("invalid ts");
+        let max_ts = OffsetDateTime::parse(max, TFMT).expect("invalid ts");
         db.purge_older_than(&max_ts).expect("failed to purge data");
     }
 
@@ -565,17 +666,13 @@ mod tests {
         let latest = db
             .get_latest_report_date(src)
             .expect("Unable to get reportdate");
-        let expect_ts = OffsetDateTime::parse(expect, "%F %T%z").expect("invalid ts");
-        println!(
-            "{:?} == {:?}",
-            latest.format("%F %T%z"),
-            expect_ts.format("%F %T%z")
-        );
+        let expect_ts = OffsetDateTime::parse(expect, TFMT).expect("invalid ts");
+        println!("{:?} == {:?}", latest.format(TFMT), expect_ts.format(TFMT));
         assert!(latest == expect_ts)
     }
 
     fn generate_report(db: &Db, src: &str, upto: &str) {
-        let upto_ts = OffsetDateTime::parse(upto, "%F %T%z").expect("invalid ts");
+        let upto_ts = OffsetDateTime::parse(upto, TFMT).expect("invalid ts");
         db.extract_report(src, &upto_ts)
             .expect("report gen failed.");
     }
