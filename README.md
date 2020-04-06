@@ -13,11 +13,11 @@ for configuring the unit have been performed.
 ## Demo Data
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Firstyear/mic_co2/master/demo_co2.png" width="50%" height="auto" />
+  <img src="https://raw.githubusercontent.com/Firstyear/mic_co2/master/demo_co2.png" width="80%" height="auto" />
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/Firstyear/mic_co2/master/demo_hum.png" width="50%" height="auto" />
+  <img src="https://raw.githubusercontent.com/Firstyear/mic_co2/master/demo_hum.png" width="80%" height="auto" />
 </p>
 
 
