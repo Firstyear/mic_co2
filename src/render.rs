@@ -4,6 +4,10 @@ use std::iter::once;
 
 use crate::db;
 
+const PNG_WIDTH: u32 = 1400;
+const PNG_HEIGHT: u32 = 800;
+
+
 #[derive(Message)]
 #[rtype(result = "Result<(), ()>")]
 pub struct RenderEvent {
@@ -44,7 +48,7 @@ impl Handler<RenderEvent> for RenderActor {
         let mut fg = Figure::new();
         fg.axes2d()
             .lines(&x, &ppm_y, &[Caption("ppm"), Color("black")]);
-        fg.save_to_png("./data/render/ppm.png", 800, 600)
+        fg.save_to_png("./data/render/ppm.png", PNG_WIDTH, PNG_HEIGHT)
             .map(|_| {
                 info!("gnuplotlob success");
                 ()
@@ -57,7 +61,7 @@ impl Handler<RenderEvent> for RenderActor {
         let mut fg = Figure::new();
         fg.axes2d()
             .lines(&x, &hum_y, &[Caption("hum"), Color("black")]);
-        fg.save_to_png("./data/render/hum.png", 800, 600)
+        fg.save_to_png("./data/render/hum.png", PNG_WIDTH, PNG_HEIGHT)
             .map(|_| {
                 info!("gnuplotlob success");
                 ()
@@ -70,7 +74,7 @@ impl Handler<RenderEvent> for RenderActor {
         let mut fg = Figure::new();
         fg.axes2d()
             .lines(&x, &temp_y, &[Caption("temp"), Color("black")]);
-        fg.save_to_png("./data/render/temp.png", 800, 600)
+        fg.save_to_png("./data/render/temp.png", PNG_WIDTH, PNG_HEIGHT)
             .map(|_| {
                 info!("gnuplotlob success");
                 ()
