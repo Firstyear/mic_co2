@@ -457,11 +457,11 @@ impl Db {
                         (
                             if dbe.temp < t_min { dbe.temp } else { t_min },
                             if dbe.temp > t_max { dbe.temp } else { t_max },
-                            t_sum + dbe.temp,
+                            t_sum + (dbe.temp as u64),
                         )
                     });
-            let t_avg = t_sum / data.len() as u16;
-            debug!("t -> {:?}, {:?}, {:?}", t_min, t_max, t_avg);
+            let t_avg = (t_sum / data.len() as u64) as u16;
+            info!("t -> {:?}, {:?}, {:?} -> {:?}", t_min, t_max, t_sum, t_avg);
 
             let (h_min, h_max, h_sum) =
                 data.iter()
@@ -469,11 +469,11 @@ impl Db {
                         (
                             if dbe.hum < h_min { dbe.hum } else { h_min },
                             if dbe.hum > h_max { dbe.hum } else { h_max },
-                            h_sum + dbe.hum,
+                            h_sum + (dbe.hum as u64),
                         )
                     });
-            let h_avg = h_sum / data.len() as u16;
-            debug!("h -> {:?}, {:?}, {:?}", h_min, h_max, h_avg);
+            let h_avg = (h_sum / data.len() as u64) as u16;
+            info!("h -> {:?}, {:?}, {:?} -> {:?}", h_min, h_max, h_sum, h_avg);
 
             let (p_min, p_max, p_sum) =
                 data.iter()
@@ -481,11 +481,11 @@ impl Db {
                         (
                             if dbe.ppm < p_min { dbe.ppm } else { p_min },
                             if dbe.ppm > p_max { dbe.ppm } else { p_max },
-                            p_sum + dbe.ppm,
+                            p_sum + (dbe.ppm as u64),
                         )
                     });
-            let p_avg = p_sum / data.len() as u16;
-            debug!("p -> {:?}, {:?}, {:?}", p_min, p_max, p_avg);
+            let p_avg = (p_sum / data.len() as u64) as u16;
+            info!("p -> {:?}, {:?}, {:?} -> {:?}", p_min, p_max, p_sum, p_avg);
             let ts = work_start.format(TFMT);
 
             // write that as a history event, use work_start as the TS.
@@ -721,12 +721,12 @@ mod tests {
 
         // Add data
         add_sample_data(&db, [0; 6], 123, 415, 123, "2020-04-05 13:02:19+1000");
-        add_sample_data(&db, [0; 6], 123, 415, 123, "2020-04-05 14:02:19+1000");
+        add_sample_data(&db, [0; 6], 123, 415, 200, "2020-04-05 14:02:19+1000");
         add_sample_data(&db, [0; 6], 123, 415, 123, "2020-04-06 13:02:19+1000");
-        add_sample_data(&db, [0; 6], 123, 415, 123, "2020-04-06 14:02:19+1000");
+        add_sample_data(&db, [0; 6], 123, 415, 200, "2020-04-06 14:02:19+1000");
         add_sample_data(&db, [0; 6], 123, 415, 123, "2020-04-07 13:02:19+1000");
-        add_sample_data(&db, [0; 6], 123, 415, 123, "2020-04-07 14:02:19+1000");
-        add_sample_data(&db, [0; 6], 123, 415, 123, "2020-04-08 13:02:19+1000");
+        add_sample_data(&db, [0; 6], 123, 415, 200, "2020-04-07 14:02:19+1000");
+        add_sample_data(&db, [0; 6], 123, 415, 200, "2020-04-08 13:02:19+1000");
         add_sample_data(&db, [0; 6], 123, 415, 123, "2020-04-08 14:02:19+1000");
 
         // List meters, there should only be one.
