@@ -139,7 +139,7 @@ async fn main() {
     let http_bind = if cfg!(debug_assertions) {
         "127.0.0.1:8082"
     } else {
-        "172.24.10.19:8082"
+        "[2001:44b8:2155:2c10:5054:ff:fef4:34af]:8082"
     };
 
     let addr = if cfg!(debug_assertions) {
