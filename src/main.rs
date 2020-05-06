@@ -33,6 +33,10 @@ struct AppState {
 #[template(path = "index.html")]
 struct IndexTemplate {}
 
+async fn status_view() -> HttpResponse {
+    HttpResponse::Ok().content_type("text/html").body("OK")
+}
+
 async fn index_view(state: Data<AppState>) -> HttpResponse {
     // Show last day in detail
     let ct = OffsetDateTime::now_local();
@@ -204,6 +208,7 @@ async fn main() {
             .service(fs::Files::new("/render", "./data/render"))
             .route("", web::get().to(index_view))
             .route("/", web::get().to(index_view))
+            .route("/status", web::get().to(status_view))
     });
     server.bind(http_bind).unwrap().run();
 
